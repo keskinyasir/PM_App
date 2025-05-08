@@ -75,59 +75,74 @@ def add_project(name, desc, start, end, members):
     }
     st.success(f"Project '{name}' added (ID: {pid})")
 
+
 def delete_project(pid):
     st.session_state['projects'].pop(pid, None)
-    st.session_state['tasks'] = {tid: t for tid, t in st.session_state['tasks'].items() if t['project_id'] != pid}
+    st.session_state['tasks'] = {tid: t for tid, t in st.session_state['tasks'].items() if t.get('project_id') != pid}
     st.success(f"Project {pid} deleted")
 
 
 def update_project_status(pid, status):
-    st.session_state['projects'][pid]['status'] = status
-    st.success(f"Project {pid} set to {status}")
+    if pid in st.session_state['projects']:
+        st.session_state['projects'][pid]['status'] = status
+        st.success(f"Project {pid} set to {status}")
 
 # --- Task Management ---
 def add_task(pid, title, due, assignee, status):
-    tid = next_task_id()
-    st.session_state['tasks'][tid] = {
-        'id': tid,
-        'project_id': pid,
-        'title': title,
-        'due_date': due,
-        'assignee': assignee,
-        'status': status,
-        'created_at': datetime.now()
-    }
-    st.success(f"Task '{title}' added (ID: {tid}) to {pid}")
+    if pid in st.session_state['projects']:
+        tid = next_task_id()
+        st.session_state['tasks'][tid] = {
+            'id': tid,
+            'project_id': pid,
+            'title': title,
+            'due_date': due,
+            'assignee': assignee,
+            'status': status,
+            'created_at': datetime.now()
+        }
+        st.success(f"Task '{title}' added (ID: {tid}) to {pid}")
+    else:
+        st.error('Invalid project selected')
 
 
-def update_task(pid, tid, **kwargs):
-    for k, v in kwargs.items():
-        st.session_state['tasks'][tid][k] = v
-    st.success(f"Task {tid} updated")
+def update_task(tid, field, value):
+    if tid in st.session_state['tasks'] and field in st.session_state['tasks'][tid]:
+        st.session_state['tasks'][tid][field] = value
+        st.success(f"Task {tid} updated: {field} set to {value}")
+    else:
+        st.error('Invalid task or field')
 
 # --- Data Accessors ---
 def get_projects_df():
-    return pd.DataFrame(st.session_state['projects'].values())
+    if st.session_state['projects']:
+        return pd.DataFrame(st.session_state['projects'].values())
+    return pd.DataFrame()
 
 def get_tasks_df():
-    return pd.DataFrame(st.session_state['tasks'].values())
+    if st.session_state['tasks']:
+        return pd.DataFrame(st.session_state['tasks'].values())
+    return pd.DataFrame()
 
 # --- Reporting ---
 def project_metrics():
     df = get_projects_df()
-    counts = df['status'].value_counts().reindex(['Not Started','In Progress','Completed','On Hold'], fill_value=0)
-    return counts
+    base = ['Not Started','In Progress','On Hold','Completed']
+    if 'status' in df:
+        return df['status'].value_counts().reindex(base, fill_value=0)
+    return pd.Series(0, index=base)
 
 
 def task_metrics():
     df = get_tasks_df()
-    counts = df['status'].value_counts().reindex(['To Do','In Progress','Blocked','Completed'], fill_value=0)
-    return counts
+    base = ['To Do','In Progress','Blocked','Completed']
+    if 'status' in df:
+        return df['status'].value_counts().reindex(base, fill_value=0)
+    return pd.Series(0, index=base)
 
 
 def upcoming_deadlines(days=7):
     today = date.today()
-    return [p for p in st.session_state['projects'].values() if (p['end_date'] - today).days <= days]
+    return [p for p in st.session_state['projects'].values() if (p.get('end_date') and (p['end_date'] - today).days <= days)]
 
 # --- UI Components ---
 def login_page():
@@ -146,7 +161,6 @@ def login_page():
 if not st.session_state['logged_in']:
     login_page()
 else:
-    # Sidebar Navigation
     st.sidebar.header(f"👤 {st.session_state['user']}")
     menu = st.sidebar.radio('Navigation', ['Dashboard','Projects','Tasks','Reports','Logout'])
 
@@ -155,19 +169,19 @@ else:
         st.session_state['user'] = ''
         st.experimental_rerun()
 
-    # Dashboard
     if menu == 'Dashboard':
         st.header('📊 Dashboard')
         proj_counts = project_metrics()
         task_counts = task_metrics()
-        up_tasks = get_tasks_df()[get_tasks_df()['due_date'] < pd.Timestamp(date.today())]
+        df_tasks = get_tasks_df()
+        overdue = df_tasks[df_tasks['due_date'] < pd.Timestamp(date.today())] if 'due_date' in df_tasks else pd.DataFrame()
         upcoming = upcoming_deadlines()
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric('Total Projects', len(proj_counts))
-        col2.metric('In Progress', proj_counts['In Progress'])
-        col3.metric('Total Tasks', task_counts.sum())
-        col4.metric('Overdue Tasks', len(up_tasks))
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric('Total Projects', proj_counts.sum())
+        c2.metric('In Progress', proj_counts.get('In Progress', 0))
+        c3.metric('Total Tasks', task_counts.sum())
+        c4.metric('Overdue Tasks', len(overdue))
 
         st.subheader('Project Status Distribution')
         st.bar_chart(proj_counts)
@@ -175,13 +189,12 @@ else:
         st.subheader('Task Status Distribution')
         st.bar_chart(task_counts)
 
-        st.subheader('Upcoming Deadlines (7 days)')
+        st.subheader('Upcoming Deadlines')
         if upcoming:
             st.table(pd.DataFrame(upcoming)[['id','name','end_date']].rename(columns={'id':'ID','name':'Project','end_date':'Ends'}))
         else:
             st.info('No upcoming deadlines')
 
-    # Projects Page
     elif menu == 'Projects':
         st.header('📁 Projects')
         with st.expander('➕ Add New Project'):
@@ -197,21 +210,20 @@ else:
         if not dfp.empty:
             st.table(dfp.set_index('id')[['name','status','start_date','end_date']].rename(columns={'name':'Name','start_date':'Start','end_date':'End','status':'Status'}))
             sel = st.selectbox('Select Project', options=dfp['id'], format_func=lambda x: f"{x} - {st.session_state['projects'][x]['name']}" )
-            st.selectbox('Change Status', ['Not Started','In Progress','On Hold','Completed'], key='proj_status')
+            new_stat = st.selectbox('Change Status', ['Not Started','In Progress','On Hold','Completed'], key='proj_status')
             if st.button('Update Project Status'):
-                update_project_status(sel, st.session_state['proj_status'])
+                update_project_status(sel, new_stat)
             if st.button('Delete Project'):
                 delete_project(sel)
         else:
             st.info('No projects available')
 
-    # Tasks Page
     elif menu == 'Tasks':
         st.header('✅ Tasks')
         with st.expander('➕ Add New Task'):
-            pdp = get_projects_df()
-            if not pdp.empty:
-                pid = st.selectbox('Project', options=pdp['id'], format_func=lambda x: f"{x} - {st.session_state['projects'][x]['name']}" )
+            dproj = get_projects_df()
+            if not dproj.empty:
+                pid = st.selectbox('Project', options=dproj['id'], format_func=lambda x: f"{x} - {st.session_state['projects'][x]['name']}" )
                 title = st.text_input('Task Title')
                 due = st.date_input('Due Date')
                 assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie','Dana'])
@@ -225,13 +237,12 @@ else:
         if not dft.empty:
             st.table(dft.set_index('id')[['project_id','title','assignee','status','due_date']].rename(columns={'project_id':'Project','title':'Title','assignee':'Assignee','due_date':'Due'}))
             tid = st.selectbox('Select Task', options=dft['id'])
-            new_status = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status')
+            new_tstat = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status')
             if st.button('Update Task'):
-                update_task(tid, 'status', new_status)
+                update_task(tid, 'status', new_tstat)
         else:
             st.info('No tasks available')
 
-    # Reports Page
     elif menu == 'Reports':
         st.header('📈 Reports')
         proj_counts = project_metrics()
@@ -240,5 +251,5 @@ else:
         st.bar_chart(proj_counts)
         st.subheader('Tasks by Status')
         st.bar_chart(task_counts)
-        rate = task_counts['Completed'] / task_counts.sum() if task_counts.sum() else 0
+        rate = task_counts.get('Completed', 0) / task_counts.sum() if task_counts.sum() else 0
         st.metric('Task Completion Rate', f"{rate:.0%}")
