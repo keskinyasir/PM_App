@@ -7,7 +7,7 @@ from datetime import date, datetime
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'user' not in st.session_state:
-    st.session_state.user = None
+    st.session_state.user = ''  # default empty string
 if 'projects' not in st.session_state:
     st.session_state.projects = {}
 if 'tasks' not in st.session_state:
@@ -72,6 +72,7 @@ def set_project_status(pid, status):
     st.success('Status updated')
 
 # --- Task Management Functions ---
+
 def add_task(pid, title, due_date, assignee):
     tid = str(uuid.uuid4())
     st.session_state.tasks[tid] = {
@@ -117,14 +118,15 @@ def upcoming_deadlines(days=7):
 if not st.session_state.logged_in:
     login_page()
 else:
-    st.sidebar.title('👤 '+st.session_state.user)
+    # Kullanıcı adı boş değilse göster
+    st.sidebar.title(f'👤 {st.session_state.user}')
     page = st.sidebar.selectbox('Menu', [
         'Dashboard', 'Projects', 'Tasks', 'Reports', 'Logout'
     ])
 
     if page == 'Logout':
         st.session_state.logged_in = False
-        st.session_state.user = None
+        st.session_state.user = ''
         st.experimental_rerun()
 
     elif page == 'Dashboard':
@@ -148,12 +150,13 @@ else:
         df = list_projects()
         st.table(df)
         # Edit/Delete
-        selected = st.selectbox('Select Project to Edit/Delete', df['id'] if not df.empty else [])
-        if selected:
-            st.write('Editing:', st.session_state.projects[selected]['name'])
-            new_status = st.selectbox('Status', ['Not Started','In Progress','Completed'], key='stat')
-            if st.button('Update Status'): set_project_status(selected, new_status)
-            if st.button('Delete Project'): delete_project(selected)
+        if not df.empty:
+            selected = st.selectbox('Select Project to Edit/Delete', df['id'])
+            if selected:
+                st.write('Editing:', st.session_state.projects[selected]['name'])
+                new_status = st.selectbox('Status', ['Not Started','In Progress','Completed'], key='stat')
+                if st.button('Update Status'): set_project_status(selected, new_status)
+                if st.button('Delete Project'): delete_project(selected)
 
     elif page == 'Tasks':
         st.title('✅ Tasks')
@@ -166,8 +169,8 @@ else:
 
         df_t = list_tasks()
         st.table(df_t)
-        sel_t = st.selectbox('Select Task', df_t['id'] if not df_t.empty else [])
-        if sel_t:
+        if not df_t.empty:
+            sel_t = st.selectbox('Select Task', df_t['id'])
             comp = st.checkbox('Completed', st.session_state.tasks[sel_t]['completed'])
             if st.button('Update Task'): update_task_status(sel_t, comp)
 
