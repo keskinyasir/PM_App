@@ -1,9 +1,38 @@
 import streamlit as st
 import pandas as pd
 import uuid
-from datetime import date, datetime
+from datetime import datetime, date
 
-# --- Initialize session state ---
+# --- Page Configuration & Styling ---
+st.set_page_config(
+    page_title="Project Management Tool",
+    page_icon="📋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.markdown(
+    """
+    <style>
+    /* Main background */
+    .stApp {
+        background-color: #f7f9fc;
+    }
+    /* Sidebar background */
+    .css-1d391kg { 
+        background-color: #ffffff;
+    }
+    /* Card headings */
+    .stMetric > div {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
+
+# --- Initialize Session State ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'user' not in st.session_state:
@@ -12,27 +41,27 @@ if 'projects' not in st.session_state:
     st.session_state['projects'] = {}
 if 'tasks' not in st.session_state:
     st.session_state['tasks'] = {}
+if 'project_counter' not in st.session_state:
+    st.session_state['project_counter'] = 0
+if 'task_counter' not in st.session_state:
+    st.session_state['task_counter'] = 0
 
-# --- Authentication Functions ---
-def authenticate_user(email, password):
-    # Basit doğrulama: admin@example.com / password123
-    return email == 'admin@example.com' and password == 'password123'
+# --- Authentication ---
+def authenticate(email, pwd):
+    return email == 'admin@example.com' and pwd == 'password123'
 
-def login_page():
-    st.title('🔐 Login')
-    email = st.text_input('Email')
-    password = st.text_input('Password', type='password')
-    if st.button('Login'):
-        if authenticate_user(email, password):
-            st.session_state['logged_in'] = True
-            st.session_state['user'] = email
-            st.success(f'Logged in as {email}')
-        else:
-            st.error('Invalid credentials')
+# --- ID Generators ---
+def next_project_id():
+    st.session_state['project_counter'] += 1
+    return f"PRJ-{st.session_state['project_counter']:03d}"
 
-# --- Project Management Functions ---
+def next_task_id():
+    st.session_state['task_counter'] += 1
+    return f"TSK-{st.session_state['task_counter']:03d}"
+
+# --- Data Management ---
 def add_project(name, desc, start, end, members):
-    pid = str(uuid.uuid4())
+    pid = next_project_id()
     st.session_state['projects'][pid] = {
         'id': pid,
         'name': name,
@@ -44,136 +73,172 @@ def add_project(name, desc, start, end, members):
         'created_by': st.session_state['user'],
         'created_at': datetime.now()
     }
-    st.success(f'Project "{name}" added')
+    st.success(f"Project '{name}' added (ID: {pid})")
 
 def delete_project(pid):
     st.session_state['projects'].pop(pid, None)
-    # Remove related tasks
     st.session_state['tasks'] = {tid: t for tid, t in st.session_state['tasks'].items() if t['project_id'] != pid}
-    st.success('Project deleted')
+    st.success(f"Project {pid} deleted")
 
-def list_projects():
-    return pd.DataFrame(st.session_state['projects'].values())
 
-def set_project_status(pid, status):
+def update_project_status(pid, status):
     st.session_state['projects'][pid]['status'] = status
-    st.success('Status updated')
+    st.success(f"Project {pid} set to {status}")
 
-# --- Task Management Functions ---
-def add_task(pid, title, due_date, assignee):
-    tid = str(uuid.uuid4())
+# --- Task Management ---
+def add_task(pid, title, due, assignee, status):
+    tid = next_task_id()
     st.session_state['tasks'][tid] = {
         'id': tid,
         'project_id': pid,
         'title': title,
-        'due_date': due_date,
+        'due_date': due,
         'assignee': assignee,
-        'completed': False,
+        'status': status,
         'created_at': datetime.now()
     }
-    st.success('Task added')
+    st.success(f"Task '{title}' added (ID: {tid}) to {pid}")
 
-def update_task_status(tid, completed):
-    st.session_state['tasks'][tid]['completed'] = completed
-    st.success('Task status updated')
 
-def list_tasks():
+def update_task(pid, tid, **kwargs):
+    for k, v in kwargs.items():
+        st.session_state['tasks'][tid][k] = v
+    st.success(f"Task {tid} updated")
+
+# --- Data Accessors ---
+def get_projects_df():
+    return pd.DataFrame(st.session_state['projects'].values())
+
+def get_tasks_df():
     return pd.DataFrame(st.session_state['tasks'].values())
 
-# --- Reporting Functions ---
-def project_summary():
-    df = list_projects()
-    if not df.empty:
-        counts = df['status'].value_counts()
-        st.subheader('Project Status Summary')
-        st.bar_chart(counts)
-        st.write('Total Projects:', len(df))
-    else:
-        st.info('No projects to summarize')
+# --- Reporting ---
+def project_metrics():
+    df = get_projects_df()
+    counts = df['status'].value_counts().reindex(['Not Started','In Progress','Completed','On Hold'], fill_value=0)
+    return counts
+
+
+def task_metrics():
+    df = get_tasks_df()
+    counts = df['status'].value_counts().reindex(['To Do','In Progress','Blocked','Completed'], fill_value=0)
+    return counts
+
 
 def upcoming_deadlines(days=7):
     today = date.today()
-    upcoming = [p for p in st.session_state['projects'].values() if (p['end_date'] - today).days <= days]
-    return pd.DataFrame(upcoming)
+    return [p for p in st.session_state['projects'].values() if (p['end_date'] - today).days <= days]
 
-# --- UI Flow ---
+# --- UI Components ---
+def login_page():
+    st.title('🔐 Login')
+    email = st.text_input('Email')
+    pwd = st.text_input('Password', type='password')
+    if st.button('Login'):
+        if authenticate(email, pwd):
+            st.session_state['logged_in'] = True
+            st.session_state['user'] = email
+            st.success(f"Welcome, {email}!")
+        else:
+            st.error('Invalid credentials')
+
+# --- Main UI Flow ---
 if not st.session_state['logged_in']:
     login_page()
 else:
-    st.sidebar.title(f"👤 {st.session_state['user']}")
-    page = st.sidebar.selectbox('Menu', ['Dashboard','Projects','Tasks','Reports','Logout'])
+    # Sidebar Navigation
+    st.sidebar.header(f"👤 {st.session_state['user']}")
+    menu = st.sidebar.radio('Navigation', ['Dashboard','Projects','Tasks','Reports','Logout'])
 
-    if page == 'Logout':
+    if menu == 'Logout':
         st.session_state['logged_in'] = False
         st.session_state['user'] = ''
+        st.experimental_rerun()
 
-    elif page == 'Dashboard':
-        st.title('📊 Dashboard')
-        project_summary()
-        st.write('### Upcoming Deadlines (Next 7 days)')
-        ud = upcoming_deadlines()
-        if not ud.empty:
-            st.table(ud)
+    # Dashboard
+    if menu == 'Dashboard':
+        st.header('📊 Dashboard')
+        proj_counts = project_metrics()
+        task_counts = task_metrics()
+        up_tasks = get_tasks_df()[get_tasks_df()['due_date'] < pd.Timestamp(date.today())]
+        upcoming = upcoming_deadlines()
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric('Total Projects', len(proj_counts))
+        col2.metric('In Progress', proj_counts['In Progress'])
+        col3.metric('Total Tasks', task_counts.sum())
+        col4.metric('Overdue Tasks', len(up_tasks))
+
+        st.subheader('Project Status Distribution')
+        st.bar_chart(proj_counts)
+
+        st.subheader('Task Status Distribution')
+        st.bar_chart(task_counts)
+
+        st.subheader('Upcoming Deadlines (7 days)')
+        if upcoming:
+            st.table(pd.DataFrame(upcoming)[['id','name','end_date']].rename(columns={'id':'ID','name':'Project','end_date':'Ends'}))
         else:
             st.info('No upcoming deadlines')
 
-    elif page == 'Projects':
-        st.title('📁 Projects')
-        with st.expander('➕ Add Project'):
+    # Projects Page
+    elif menu == 'Projects':
+        st.header('📁 Projects')
+        with st.expander('➕ Add New Project'):
             name = st.text_input('Name')
             desc = st.text_area('Description')
             start = st.date_input('Start Date')
             end = st.date_input('End Date')
-            members = st.multiselect('Members', ['Alice','Bob','Charlie'])
-            if st.button('Add Project'):
+            members = st.multiselect('Members', ['Alice','Bob','Charlie','Dana'])
+            if st.button('Create Project'):
                 add_project(name, desc, start, end, members)
 
-        df = list_projects()
-        if not df.empty:
-            st.table(df)
-            pid = st.selectbox('Select Project to Modify', df['id'])
-            status = st.selectbox('Set Status', ['Not Started','In Progress','Completed'])
-            if st.button('Update Status'):
-                set_project_status(pid, status)
+        dfp = get_projects_df()
+        if not dfp.empty:
+            st.table(dfp.set_index('id')[['name','status','start_date','end_date']].rename(columns={'name':'Name','start_date':'Start','end_date':'End','status':'Status'}))
+            sel = st.selectbox('Select Project', options=dfp['id'], format_func=lambda x: f"{x} - {st.session_state['projects'][x]['name']}" )
+            st.selectbox('Change Status', ['Not Started','In Progress','On Hold','Completed'], key='proj_status')
+            if st.button('Update Project Status'):
+                update_project_status(sel, st.session_state['proj_status'])
             if st.button('Delete Project'):
-                delete_project(pid)
+                delete_project(sel)
         else:
-            st.info('No projects yet')
+            st.info('No projects available')
 
-    elif page == 'Tasks':
-        st.title('✅ Tasks')
-        with st.expander('➕ Add Task'):
-            proj_ids = list(st.session_state['projects'].keys())
-            if proj_ids:
-                pid = st.selectbox('Project', proj_ids)
+    # Tasks Page
+    elif menu == 'Tasks':
+        st.header('✅ Tasks')
+        with st.expander('➕ Add New Task'):
+            pdp = get_projects_df()
+            if not pdp.empty:
+                pid = st.selectbox('Project', options=pdp['id'], format_func=lambda x: f"{x} - {st.session_state['projects'][x]['name']}" )
                 title = st.text_input('Task Title')
                 due = st.date_input('Due Date')
-                assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie'])
+                assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie','Dana'])
+                status = st.selectbox('Status', ['To Do','In Progress','Blocked','Completed'])
                 if st.button('Add Task'):
-                    add_task(pid, title, due, assignee)
+                    add_task(pid, title, due, assignee, status)
             else:
-                st.info('Add a project first')
+                st.info('Create a project first')
 
-        dt = list_tasks()
-        if not dt.empty:
-            st.table(dt)
-            tid = st.selectbox('Select Task', dt['id'])
-            done = st.checkbox('Completed', value=st.session_state['tasks'][tid]['completed'])
+        dft = get_tasks_df()
+        if not dft.empty:
+            st.table(dft.set_index('id')[['project_id','title','assignee','status','due_date']].rename(columns={'project_id':'Project','title':'Title','assignee':'Assignee','due_date':'Due'}))
+            tid = st.selectbox('Select Task', options=dft['id'])
+            new_status = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status')
             if st.button('Update Task'):
-                update_task_status(tid, done)
+                update_task(tid, 'status', new_status)
         else:
-            st.info('No tasks yet')
+            st.info('No tasks available')
 
-    elif page == 'Reports':
-        st.title('📈 Reports')
-        dfp = list_projects()
-        if not dfp.empty:
-            st.write('**Projects by Member**')
-            pm = dfp.explode('members')['members'].value_counts()
-            st.bar_chart(pm)
-        dt = list_tasks()
-        if not dt.empty:
-            rate = dt['completed'].mean()
-            st.metric('Overall Task Completion Rate', f"{rate:.0%}")
-        else:
-            st.info('No tasks to report')
+    # Reports Page
+    elif menu == 'Reports':
+        st.header('📈 Reports')
+        proj_counts = project_metrics()
+        task_counts = task_metrics()
+        st.subheader('Projects by Status')
+        st.bar_chart(proj_counts)
+        st.subheader('Tasks by Status')
+        st.bar_chart(task_counts)
+        rate = task_counts['Completed'] / task_counts.sum() if task_counts.sum() else 0
+        st.metric('Task Completion Rate', f"{rate:.0%}")
