@@ -56,12 +56,14 @@ def fetch_tasks():
 
 def add_project(name, desc, start, end, members):
     with get_connection() as conn:
-        conn.execute("""
+        cursor = conn.execute("""
             INSERT INTO projects (name, description, start_date, end_date, status, members, created_by, created_at)
             VALUES (?, ?, ?, ?, 'Not Started', ?, ?, ?)
-        """, (name, desc, start, end, members, st.session_state['user'], datetime.now()))
+        """, (name, desc, start.isoformat(), end.isoformat(), members, st.session_state['user'], datetime.now().isoformat()))
         conn.commit()
-    st.success(f"Project '{name}' added")
+        pid = cursor.lastrowid  # This is the new project ID assigned by SQLite
+    st.success(f"Project '{name}' added with ID {pid}")
+
 
 def delete_project(pid):
     with get_connection() as conn:
