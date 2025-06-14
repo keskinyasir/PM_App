@@ -85,11 +85,12 @@ def add_task(pid, title, due, assignee, status):
         conn.commit()
     st.success(f"Task '{title}' added to project {pid}")
 
-def update_task(tid, field, value):
-    with get_connection() as conn:
-        conn.execute(f"UPDATE tasks SET {field} = ? WHERE id = ?", (value, tid))
-        conn.commit()
-    st.success(f"Task {tid} updated")
+def update_task(task_id, field, value):
+    if task_id in st.session_state['tasks']:
+        st.session_state['tasks'][task_id][field] = value
+        st.success(f"Task {task_id} updated: {field} → {value}")
+    else:
+        st.error("Task not found.")
 
 # --- Metrics ---
 def project_metrics():
