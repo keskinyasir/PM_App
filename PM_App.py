@@ -14,17 +14,20 @@ st.markdown(
     """
     <style>
     /* Main app background */
-    .stApp {
-        background-color: #ffffff;
+    [data-testid="stAppViewContainer"] {
+        background-color: #f9f9f9;
     }
+
     /* Sidebar background */
-    .css-1d391kg {
+    [data-testid="stSidebar"] {
         background-color: #1E3A8A;
     }
-    /* Sidebar headers and text */
-    .css-1d391kg .stMarkdown {
+
+    /* Sidebar text color */
+    [data-testid="stSidebar"] * {
         color: #ffffff;
     }
+
     /* Metric cards */
     .stMetric > div {
         background-color: #FFFFFF;
@@ -32,11 +35,13 @@ st.markdown(
         border-radius: 8px;
         padding: 10px;
     }
+
     /* Table headers */
-    .stTable thead tr th {
-        background-color: #E1EAF6;
-        color: #1E3A8A;
+    thead tr th {
+        background-color: #E1EAF6 !important;
+        color: #1E3A8A !important;
     }
+
     /* Buttons */
     .stButton>button {
         background-color: #1E3A8A;
@@ -49,6 +54,7 @@ st.markdown(
     </style>
     """, unsafe_allow_html=True
 )
+
 
 # --- Session State Initialization ---
 for key, default in [('logged_in', False), ('user', ''), ('projects', {}), ('tasks', {}), ('project_counter', 0), ('task_counter', 0)]:
