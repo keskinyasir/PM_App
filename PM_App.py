@@ -186,7 +186,8 @@ else:
             if not dproj.empty:
                 pid = st.selectbox(
                     'Project', options=dproj['id'],
-                    format_func=lambda x: f"{x} - {dproj[dproj['id']==x]['name'].values[0]}"
+                    format_func=lambda x: f"{x} - {dproj[dproj['id']==x]['name'].iloc[0]}" if not dproj[dproj['id']==x].empty else str(x)
+
                 )
                 title = st.text_input('Task Title')
                 due = st.date_input('Due Date')
