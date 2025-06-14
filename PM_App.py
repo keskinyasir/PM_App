@@ -168,7 +168,8 @@ else:
             )
             sel = st.selectbox(
                 'Select Project', options=dfp['id'],
-                format_func=lambda x: f"{x} - {dfp[dfp['id']==x]['name'].values[0]}"
+                format_func=lambda x: f"{x} - {dfp[dfp['id']==x]['name'].iloc[0]}" if not dfp[dfp['id']==x].empty else str(x)
+
             )
             new_stat = st.selectbox('Change Status', ['Not Started','In Progress','On Hold','Completed'], key='proj_status')
             if st.button('Update Project Status'):
