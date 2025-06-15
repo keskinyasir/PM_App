@@ -113,8 +113,13 @@ def add_project(project_code, name, desc, start, end, members):
         st.success(f"Project '{name}' added with ID {pid}")
     except Exception as e:
         import traceback
-        st.error(f"Error adding project: {e}")
+        st.error(f"Error adding project: {e}")  
         st.text(traceback.format_exc())
+    cursor = conn.execute("SELECT last_insert_rowid()")
+    st.write("Last inserted project ID:", cursor.fetchone()[0])
+
+    df = fetch_projects()
+    st.write(df)    
 
 
 
