@@ -25,7 +25,7 @@ def initialize_database():
             )
         """)
 
-                # Check and add missing column
+        # Check and add missing column
         columns = [row[1] for row in conn.execute("PRAGMA table_info(projects);")]
         if "project_code" not in columns:
             conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT;")
@@ -112,7 +112,11 @@ def add_project(project_code, name, desc, start, end, members):
             pid = cursor.lastrowid
         st.success(f"Project '{name}' added with ID {pid}")
     except Exception as e:
+        import traceback
         st.error(f"Error adding project: {e}")
+        st.text(traceback.format_exc())
+
+
 
 
 def delete_project(pid):
