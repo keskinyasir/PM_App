@@ -14,6 +14,7 @@ def initialize_database():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_code TEXT UNIQUE,
                 name TEXT NOT NULL,
                 description TEXT,
                 start_date TEXT,
@@ -38,22 +39,10 @@ def initialize_database():
         """)
         conn.commit()
 
-def alter_database_if_needed():
-    with get_connection() as conn:
-        cursor = conn.execute("PRAGMA table_info(projects)")
-        columns = [info[1] for info in cursor.fetchall()]
-        if 'project_code' not in columns:
-            # Add column without UNIQUE constraint
-            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
-            conn.commit()
-            # Create unique index on project_code to enforce uniqueness
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_project_code ON projects(project_code)")
-            conn.commit()
-
 # --- Page Configuration & Styling ---
 st.set_page_config(
     page_title="Project Management Tool",
-    page_icon=":clipboard:",  # Streamlit-supported emoji syntax
+    page_icon=":clipboard:",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -70,8 +59,6 @@ thead tr th { background-color: #E1EAF6 !important; color: #1E3A8A !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# Alter database if needed BEFORE initializing tables (so project_code column exists)
-alter_database_if_needed()
 initialize_database()
 
 # --- Authentication ---
@@ -214,6 +201,7 @@ else:
                     st.error("Start date cannot be after End date")
                 else:
                     add_project(name, desc, start, end, ",".join(members))
+                    st.experimental_rerun()  # <--- Refresh app to show new project immediately
 
         dfp = fetch_projects()
         if not dfp.empty:
@@ -226,6 +214,7 @@ else:
                 update_project_status(sel, new_stat)
             if st.button('Delete Project'):
                 delete_project(sel)
+                st.experimental_rerun()  # Refresh after deletion
         else:
             st.info('No projects available')
 
@@ -243,10 +232,9 @@ else:
                 if st.button('Add Task'):
                     if not title:
                         st.error("Task title is required")
-                    elif due < date.today():
-                        st.error("Due date cannot be in the past")
                     else:
                         add_task(pid, title, due, assignee, status)
+                        st.experimental_rerun()  # Refresh after adding task
             else:
                 st.info('Create a project first')
 
@@ -261,6 +249,7 @@ else:
             new_tstat = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status')
             if st.button('Update Task'):
                 update_task(tid,'status',new_tstat)
+                st.experimental_rerun()
         else:
             st.info('No tasks available')
 
