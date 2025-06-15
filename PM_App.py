@@ -103,7 +103,7 @@ def fetch_tasks():
 def add_project(project_code, name, desc, start, end, members):
     try:
         with get_connection() as conn:
-            project_code = f"PRJ-{int(datetime.now().timestamp())}"
+            #project_code = f"PRJ-{int(datetime.now().timestamp())}"
             cursor = conn.execute("""
                 INSERT INTO projects (project_code, name, description, start_date, end_date, status, members, created_by, created_at)
                 VALUES (?, ?, ?, ?, ?, 'Not Started', ?, ?, ?)
