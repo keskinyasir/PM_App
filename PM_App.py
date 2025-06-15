@@ -8,12 +8,14 @@ DB_PATH = 'pm_app.db'
 
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
+
 def initialize_database():
     with get_connection() as conn:
-        # Create projects table without project_code (initial setup)
+        # Create projects table
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_code TEXT,
                 name TEXT NOT NULL,
                 description TEXT,
                 start_date TEXT,
@@ -38,11 +40,14 @@ def initialize_database():
         """)
         conn.commit()
 
-        # Migration: add project_code if it doesn't exist
-        existing_columns = pd.read_sql_query("PRAGMA table_info(projects)", conn)['name'].tolist()
-        if 'project_code' not in existing_columns:
-            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
-            conn.commit()
+initialize_database()
+
+# Use this migration to ensure the new column exists
+with get_connection() as conn:
+    existing_columns = pd.read_sql_query("PRAGMA table_info(projects)", conn)['name'].tolist()
+    if 'project_code' not in existing_columns:
+        conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
+        conn.commit()
 
 
 # --- Page Configuration & Styling ---
