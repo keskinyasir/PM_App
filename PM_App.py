@@ -11,10 +11,11 @@ def get_connection():
 
 def initialize_database():
     with get_connection() as conn:
-        # Create base schema
+        # Create projects table
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_code TEXT,
                 name TEXT NOT NULL,
                 description TEXT,
                 start_date TEXT,
@@ -37,14 +38,17 @@ def initialize_database():
                 FOREIGN KEY(project_id) REFERENCES projects(id)
             )
         """)
-        # Add project_code column if missing
-        existing_columns = pd.read_sql_query("PRAGMA table_info(projects)", conn)['name'].tolist()
-        if 'project_code' not in existing_columns:
-            try:
-                conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT UNIQUE")
-                conn.commit()
-            except sqlite3.OperationalError as e:
-                st.warning(f"Migration error (already added?): {e}")
+        conn.commit()
+
+initialize_database()
+
+# Use this migration to ensure the new column exists
+with get_connection() as conn:
+    existing_columns = pd.read_sql_query("PRAGMA table_info(projects)", conn)['name'].tolist()
+    if 'project_code' not in existing_columns:
+        conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
+        conn.commit()
+
 
 # --- Page Configuration & Styling ---
 st.set_page_config(
