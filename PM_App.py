@@ -9,20 +9,11 @@ DB_PATH = 'pm_app.db'
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
-def alter_database_if_needed():
-    with get_connection() as conn:
-        cursor = conn.execute("PRAGMA table_info(projects)")
-        columns = [info[1] for info in cursor.fetchall()]
-        if 'project_code' not in columns:
-            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT UNIQUE")
-            conn.commit()
-
 def initialize_database():
     with get_connection() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_code TEXT UNIQUE,
                 name TEXT NOT NULL,
                 description TEXT,
                 start_date TEXT,
@@ -47,10 +38,22 @@ def initialize_database():
         """)
         conn.commit()
 
+def alter_database_if_needed():
+    with get_connection() as conn:
+        cursor = conn.execute("PRAGMA table_info(projects)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'project_code' not in columns:
+            # Add column without UNIQUE constraint
+            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
+            conn.commit()
+            # Create unique index on project_code to enforce uniqueness
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_project_code ON projects(project_code)")
+            conn.commit()
+
 # --- Page Configuration & Styling ---
 st.set_page_config(
     page_title="Project Management Tool",
-    page_icon=":clipboard:",
+    page_icon=":clipboard:",  # Streamlit-supported emoji syntax
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -67,7 +70,8 @@ thead tr th { background-color: #E1EAF6 !important; color: #1E3A8A !important; }
 </style>
 """, unsafe_allow_html=True)
 
-alter_database_if_needed()  # <-- fix applied here before initializing
+# Alter database if needed BEFORE initializing tables (so project_code column exists)
+alter_database_if_needed()
 initialize_database()
 
 # --- Authentication ---
@@ -204,7 +208,12 @@ else:
             end = st.date_input('End Date')
             members = st.multiselect('Members', ['Alice','Bob','Charlie','Dana'])
             if st.button('Create Project'):
-                add_project(name, desc, start, end, ",".join(members))
+                if not name:
+                    st.error("Project name is required")
+                elif start > end:
+                    st.error("Start date cannot be after End date")
+                else:
+                    add_project(name, desc, start, end, ",".join(members))
 
         dfp = fetch_projects()
         if not dfp.empty:
@@ -232,7 +241,12 @@ else:
                 assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie','Dana'])
                 status = st.selectbox('Status', ['To Do','In Progress','Blocked','Completed'])
                 if st.button('Add Task'):
-                    add_task(pid, title, due, assignee, status)
+                    if not title:
+                        st.error("Task title is required")
+                    elif due < date.today():
+                        st.error("Due date cannot be in the past")
+                    else:
+                        add_task(pid, title, due, assignee, status)
             else:
                 st.info('Create a project first')
 
