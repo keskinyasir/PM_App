@@ -13,7 +13,6 @@ def initialize_database():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_code TEXT,
                 name TEXT NOT NULL,
                 description TEXT,
                 start_date TEXT,
