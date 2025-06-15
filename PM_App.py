@@ -40,6 +40,17 @@ def initialize_database():
         conn.commit()
 
 
+def add_project_code_column_if_missing():
+    with get_connection() as conn:
+        # Check if project_code column exists
+        result = conn.execute("PRAGMA table_info(projects)").fetchall()
+        columns = [col[1] for col in result]
+        if 'project_code' not in columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
+            conn.commit()
+            st.info("Added 'project_code' column to projects table.")
+
+
 # --- Page Configuration & Styling ---
 st.set_page_config(
     page_title="Project Management Tool",
