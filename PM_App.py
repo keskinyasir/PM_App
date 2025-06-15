@@ -152,7 +152,8 @@ if 'logged_in' not in st.session_state:
 if not st.session_state['logged_in']:
     login_page()
 else:
-    st.sidebar.header(f"\ud83d\udc64 {st.session_state['user']}")
+    st.sidebar.header(f":bust_in_silhouette: {st.session_state['user']}")
+
     menu = st.sidebar.radio('Navigation', ['Dashboard', 'Projects', 'Tasks', 'Reports', 'Logout'])
 
     if menu == 'Logout':
