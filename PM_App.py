@@ -6,7 +6,6 @@ from datetime import datetime, date
 DB_PATH = 'pm_app.db'
 
 def get_connection():
-    # keep check_same_thread=False so connections can be used across threads in Streamlit
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def initialize_database():
@@ -37,9 +36,7 @@ def initialize_database():
                 FOREIGN KEY(project_id) REFERENCES projects(id)
             )
         """)
-
-    # Migrate project_code column if it doesn't exist
-    with get_connection() as conn:
+        # Check project_code column migration
         existing_columns = pd.read_sql_query("PRAGMA table_info(projects)", conn)['name'].tolist()
         if 'project_code' not in existing_columns:
             conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
@@ -47,7 +44,6 @@ def initialize_database():
 
 initialize_database()
 
-# --- Page Configuration & Styling ---
 st.set_page_config(
     page_title="Project Management Tool",
     page_icon=":clipboard:",
@@ -67,7 +63,6 @@ thead tr th { background-color: #E1EAF6 !important; color: #1E3A8A !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Authentication ---
 def authenticate(email, pwd):
     return email == 'admin@example.com' and pwd == 'password123'
 
@@ -84,7 +79,6 @@ def login_page():
         else:
             st.error('Invalid credentials')
 
-# --- Database Helpers ---
 def fetch_projects():
     try:
         with get_connection() as conn:
@@ -112,6 +106,7 @@ def add_project(name, desc, start, end, members):
             conn.commit()
             pid = cursor.lastrowid
         st.success(f"Project '{name}' added with ID {pid}")
+        st.session_state['refresh'] = True
     except Exception as e:
         st.error(f"Error adding project: {e}")
 
@@ -122,6 +117,7 @@ def delete_project(pid):
             conn.execute("DELETE FROM tasks WHERE project_id = ?", (pid,))
             conn.commit()
         st.success(f"Project {pid} deleted")
+        st.session_state['refresh'] = True
     except Exception as e:
         st.error(f"Failed to delete project {pid}: {e}")
 
@@ -131,6 +127,7 @@ def update_project_status(pid, status):
             conn.execute("UPDATE projects SET status = ? WHERE id = ?", (status, pid))
             conn.commit()
         st.success(f"Project {pid} updated to {status}")
+        st.session_state['refresh'] = True
     except Exception as e:
         st.error(f"Failed to update project status: {e}")
 
@@ -143,6 +140,7 @@ def add_task(pid, title, due, assignee, status):
             """, (pid, title, due.isoformat(), assignee, status, datetime.now().isoformat()))
             conn.commit()
         st.success(f"Task '{title}' added to project {pid}")
+        st.session_state['refresh'] = True
     except Exception as e:
         st.error(f"Failed to add task: {e}")
 
@@ -156,10 +154,10 @@ def update_task(task_id, field, value):
             conn.execute(f"UPDATE tasks SET {field} = ? WHERE id = ?", (value, task_id))
             conn.commit()
         st.success(f"Task {task_id} updated: {field} → {value}")
+        st.session_state['refresh'] = True
     except Exception as e:
         st.error(f"Failed to update task: {e}")
 
-# --- Metrics ---
 def project_metrics():
     df = fetch_projects()
     if df.empty:
@@ -180,15 +178,20 @@ def upcoming_deadlines(days=7):
     upcoming = df[(df['end_date'] <= pd.Timestamp(date.today() + pd.Timedelta(days=days))) & (df['end_date'] >= pd.Timestamp(date.today()))]
     return upcoming[['id','name','end_date']]
 
-# --- Main UI ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'user' not in st.session_state:
     st.session_state['user'] = ''
+if 'refresh' not in st.session_state:
+    st.session_state['refresh'] = False
 
 if not st.session_state['logged_in']:
     login_page()
 else:
+    if st.session_state['refresh']:
+        st.session_state['refresh'] = False
+        st.experimental_rerun()
+
     st.sidebar.header(f"👤 {st.session_state['user']}")
 
     menu = st.sidebar.radio('Navigation', ['Dashboard', 'Projects', 'Tasks', 'Reports', 'Logout'])
@@ -244,7 +247,6 @@ else:
                     st.error("Start date cannot be after End date")
                 else:
                     add_project(name, desc, start, end, ",".join(members))
-                    st.experimental_rerun()
 
         dfp = fetch_projects()
         if not dfp.empty:
@@ -257,7 +259,6 @@ else:
                 update_project_status(sel, new_stat)
             if st.button('Delete Project'):
                 delete_project(sel)
-                st.experimental_rerun()
         else:
             st.info('No projects available')
 
@@ -277,7 +278,6 @@ else:
                         st.error("Task title is required")
                     else:
                         add_task(pid, title, due, assignee, status)
-                        st.experimental_rerun()
             else:
                 st.info('Create a project first')
 
@@ -292,7 +292,6 @@ else:
             new_tstat = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status')
             if st.button('Update Task'):
                 update_task(tid,'status',new_tstat)
-                st.experimental_rerun()
         else:
             st.info('No tasks available')
 
