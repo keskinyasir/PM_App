@@ -94,7 +94,7 @@ def fetch_tasks():
         st.error(f"Failed to fetch tasks: {e}")
         return pd.DataFrame()
 
-def add_project(name, desc, start, end, members):
+def add_project(project_code, name, desc, start, end, members):
     try:
         with get_connection() as conn:
             project_code = f"PRJ-{int(datetime.now().timestamp())}"
@@ -107,6 +107,7 @@ def add_project(name, desc, start, end, members):
         st.success(f"Project '{name}' added with ID {pid}")
     except Exception as e:
         st.error(f"Error adding project: {e}")
+
 
 def delete_project(pid):
     try:
