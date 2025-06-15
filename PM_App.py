@@ -1,5 +1,4 @@
-# Project Management Streamlit App with Dynamic SQLite Database and Migration
-
+# Project Management Streamlit App with Dynamic SQLite Database
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -10,24 +9,12 @@ DB_PATH = 'pm_app.db'
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
-def migrate_add_project_code():
-    """Check if 'project_code' column exists; if not, add it."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(projects)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'project_code' not in columns:
-        st.info("Migrating database: Adding 'project_code' column to projects table...")
-        cursor.execute("ALTER TABLE projects ADD COLUMN project_code TEXT UNIQUE")
-        conn.commit()
-        st.success("Migration complete!")
-    conn.close()
-
 def initialize_database():
     with get_connection() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_code TEXT UNIQUE,
                 name TEXT NOT NULL,
                 description TEXT,
                 start_date TEXT,
@@ -36,7 +23,6 @@ def initialize_database():
                 members TEXT,
                 created_by TEXT,
                 created_at TEXT
-                -- 'project_code' may be added via migration if missing
             )
         """)
         conn.execute("""
@@ -73,16 +59,14 @@ thead tr th { background-color: #E1EAF6 !important; color: #1E3A8A !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize DB and run migration if needed
 initialize_database()
-migrate_add_project_code()
 
 # --- Authentication ---
 def authenticate(email, pwd):
     return email == 'admin@example.com' and pwd == 'password123'
 
 def login_page():
-    st.title('🔐 Login')
+    st.title('\ud83d\udd10 Login')
     email = st.text_input('Email')
     pwd = st.text_input('Password', type='password')
     if st.button('Login'):
@@ -106,13 +90,13 @@ def add_project(name, desc, start, end, members):
     try:
         with get_connection() as conn:
             project_code = f"PRJ-{int(datetime.now().timestamp())}"
-            conn.execute("""
+            cursor = conn.execute("""
                 INSERT INTO projects (project_code, name, description, start_date, end_date, status, members, created_by, created_at)
                 VALUES (?, ?, ?, ?, ?, 'Not Started', ?, ?, ?)
             """, (project_code, name, desc, start.isoformat(), end.isoformat(), members, st.session_state['user'], datetime.now().isoformat()))
             conn.commit()
-        st.success(f"Project '{name}' added successfully!")
-        st.experimental_rerun()  # Refresh UI immediately
+            pid = cursor.lastrowid
+        st.success(f"Project '{name}' added with ID {pid}")
     except Exception as e:
         st.error(f"Error adding project: {e}")
 
@@ -175,7 +159,7 @@ else:
         st.session_state['user'] = ''
         st.experimental_rerun()
 
-    elif menu == 'Dashboard':
+    if menu == 'Dashboard':
         st.header(":bar_chart: Dashboard")
         proj_counts = project_metrics()
         task_counts = task_metrics()
@@ -211,12 +195,13 @@ else:
             end = st.date_input('End Date')
             members = st.multiselect('Members', ['Alice','Bob','Charlie','Dana'])
             if st.button('Create Project'):
-                if name.strip() == "":
-                    st.error("Project name cannot be empty.")
-                elif end < start:
-                    st.error("End date cannot be before start date.")
+                if not name:
+                    st.error("Project name is required")
+                elif start > end:
+                    st.error("Start date cannot be after End date")
                 else:
                     add_project(name, desc, start, end, ",".join(members))
+                    st.experimental_rerun()  # <--- Refresh app to show new project immediately
 
         dfp = fetch_projects()
         if not dfp.empty:
@@ -229,6 +214,7 @@ else:
                 update_project_status(sel, new_stat)
             if st.button('Delete Project'):
                 delete_project(sel)
+                st.experimental_rerun()  # Refresh after deletion
         else:
             st.info('No projects available')
 
@@ -244,10 +230,11 @@ else:
                 assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie','Dana'])
                 status = st.selectbox('Status', ['To Do','In Progress','Blocked','Completed'])
                 if st.button('Add Task'):
-                    if title.strip() == "":
-                        st.error("Task title cannot be empty.")
+                    if not title:
+                        st.error("Task title is required")
                     else:
                         add_task(pid, title, due, assignee, status)
+                        st.experimental_rerun()  # Refresh after adding task
             else:
                 st.info('Create a project first')
 
@@ -262,6 +249,7 @@ else:
             new_tstat = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status')
             if st.button('Update Task'):
                 update_task(tid,'status',new_tstat)
+                st.experimental_rerun()
         else:
             st.info('No tasks available')
 
