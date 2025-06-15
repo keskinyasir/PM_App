@@ -42,10 +42,12 @@ def initialize_database():
 # --- Page Configuration & Styling ---
 st.set_page_config(
     page_title="Project Management Tool",
-    page_icon="\ud83d\udccb",
+    page_icon=":clipboard:",  # Streamlit-supported emoji syntax
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+
 
 st.markdown("""
 <style>
