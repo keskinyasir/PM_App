@@ -9,6 +9,37 @@ DB_PATH = 'pm_app.db'
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
+def initialize_database():
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                status TEXT,
+                members TEXT,
+                created_by TEXT,
+                created_at TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER,
+                title TEXT NOT NULL,
+                due_date TEXT,
+                assignee TEXT,
+                status TEXT,
+                created_at TEXT,
+                FOREIGN KEY(project_id) REFERENCES projects(id)
+            )
+        """)
+        conn.commit()
+
+
+
 # --- Page Configuration & Styling ---
 st.set_page_config(
     page_title="Project Management Tool",
