@@ -14,6 +14,7 @@ def initialize_database():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_code TEXT UNIQUE,
                 name TEXT NOT NULL,
                 description TEXT,
                 start_date TEXT,
@@ -37,7 +38,6 @@ def initialize_database():
             )
         """)
         conn.commit()
-
 
 
 # --- Page Configuration & Styling ---
@@ -85,15 +85,33 @@ def fetch_tasks():
     with get_connection() as conn:
         return pd.read_sql_query("SELECT * FROM tasks", conn)
 
+
+def generate_project_code():
+    with get_connection() as conn:
+        result = conn.execute("SELECT COUNT(*) FROM projects").fetchone()
+        count = result[0] + 1  # Next project number
+        return f"PRJ-{count:03}"  # e.g., PRJ-001
+
 def add_project(name, desc, start, end, members):
+    project_code = generate_project_code()
     with get_connection() as conn:
         cursor = conn.execute("""
-            INSERT INTO projects (name, description, start_date, end_date, status, members, created_by, created_at)
-            VALUES (?, ?, ?, ?, 'Not Started', ?, ?, ?)
-        """, (name, desc, start.isoformat(), end.isoformat(), members, st.session_state['user'], datetime.now().isoformat()))
+            INSERT INTO projects (
+                project_code, name, description, start_date, end_date, status, members, created_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, 'Not Started', ?, ?, ?)
+        """, (
+            project_code, name, desc, start.isoformat(), end.isoformat(),
+            members, st.session_state['user'], datetime.now().isoformat()
+        ))
         conn.commit()
-        pid = cursor.lastrowid  # This is the new project ID assigned by SQLite
-    st.success(f"Project '{name}' added with ID {pid}")
+    st.success(f"Project '{name}' added with Code {project_code}")
+
+dfp = fetch_projects()
+if not dfp.empty:
+    st.table(
+        dfp.set_index('project_code')[['name','status','start_date','end_date']]
+        .rename(columns={'name':'Name','start_date':'Start','end_date':'End','status':'Status'})
+    )
 
 
 def delete_project(pid):
