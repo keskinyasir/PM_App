@@ -1,185 +1,298 @@
 import streamlit as st
+import pandas as pd
 import sqlite3
-from datetime import date
+from datetime import datetime, date
 
 DB_PATH = 'pm_app.db'
 
-# --- Database Connection ---
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
-# --- Initialize Database (Create tables if not exist) ---
-def initialize_db():
-    conn = get_connection()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS projects (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            start_date TEXT,
-            end_date TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER,
-            title TEXT NOT NULL,
-            due_date TEXT,
-            assignee TEXT,
-            status TEXT,
-            FOREIGN KEY(project_id) REFERENCES projects(id)
-        )
-    """)
-    conn.commit()
-    conn.close()
+def initialize_database():
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_code TEXT,
+                name TEXT NOT NULL,
+                description TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                status TEXT,
+                members TEXT,
+                created_by TEXT,
+                created_at TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER,
+                title TEXT NOT NULL,
+                due_date TEXT,
+                assignee TEXT,
+                status TEXT,
+                created_at TEXT,
+                FOREIGN KEY(project_id) REFERENCES projects(id)
+            )
+        """)
 
-# --- DB Operations ---
-def add_project(name, description, start_date, end_date):
-    conn = get_connection()
-    conn.execute("""
-        INSERT INTO projects (name, description, start_date, end_date)
-        VALUES (?, ?, ?, ?)
-    """, (name, description, start_date, end_date))
-    conn.commit()
-    conn.close()
+initialize_database()
 
-def fetch_projects():
-    conn = get_connection()
-    cursor = conn.execute("SELECT * FROM projects ORDER BY id DESC")
-    projects = cursor.fetchall()
-    conn.close()
-    return projects
+# --- Page config and styling ---
+st.set_page_config(
+    page_title="Project Management Tool",
+    page_icon=":clipboard:",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-def delete_project(project_id):
-    conn = get_connection()
-    conn.execute("DELETE FROM tasks WHERE project_id = ?", (project_id,))
-    conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-    conn.commit()
-    conn.close()
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] { background-color: #f9f9f9; }
+[data-testid="stSidebar"] { background-color: #1E3A8A; }
+[data-testid="stSidebar"] * { color: #ffffff; }
+.stMetric > div { background-color: #FFFFFF; border-left: 4px solid #1E3A8A; border-radius: 8px; padding: 10px; }
+thead tr th { background-color: #E1EAF6 !important; color: #1E3A8A !important; }
+.stButton>button { background-color: #1E3A8A; color: #ffffff; border-radius: 5px; }
+.stButton>button:hover { background-color: #162c61; }
+</style>
+""", unsafe_allow_html=True)
 
-def add_task(project_id, title, due_date, assignee, status):
-    conn = get_connection()
-    conn.execute("""
-        INSERT INTO tasks (project_id, title, due_date, assignee, status)
-        VALUES (?, ?, ?, ?, ?)
-    """, (project_id, title, due_date, assignee, status))
-    conn.commit()
-    conn.close()
+# --- Authentication ---
+def authenticate(email, pwd):
+    return email == 'admin@example.com' and pwd == 'password123'
 
-def fetch_tasks(project_id=None):
-    conn = get_connection()
-    if project_id:
-        cursor = conn.execute("SELECT * FROM tasks WHERE project_id = ? ORDER BY id DESC", (project_id,))
-    else:
-        cursor = conn.execute("SELECT * FROM tasks ORDER BY id DESC")
-    tasks = cursor.fetchall()
-    conn.close()
-    return tasks
+def login_page():
+    st.title('Login')
+    email = st.text_input('Email', key='login_email')
+    pwd = st.text_input('Password', type='password', key='login_password')
+    login_clicked = st.button('Login')
 
-def delete_task(task_id):
-    conn = get_connection()
-    conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-    conn.commit()
-    conn.close()
-
-def update_task_status(task_id, new_status):
-    conn = get_connection()
-    conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (new_status, task_id))
-    conn.commit()
-    conn.close()
-
-# --- Initialize DB ---
-initialize_db()
-
-st.title("📋 Simple Project and Task Manager")
-
-# --- State keys helpers ---
-def reset_project_inputs():
-    for key in ['project_name', 'project_description', 'project_start', 'project_end']:
-        if key in st.session_state:
-            del st.session_state[key]
-
-def reset_task_inputs(proj_id):
-    keys = [f'task_title_{proj_id}', f'task_due_{proj_id}', f'task_assignee_{proj_id}', f'task_status_{proj_id}']
-    for key in keys:
-        if key in st.session_state:
-            del st.session_state[key]
-
-# --- Add New Project ---
-with st.expander("➕ Add New Project"):
-    project_name = st.text_input("Project Name", key='project_name')
-    project_description = st.text_area("Description", key='project_description')
-    project_start = st.date_input("Start Date", value=date.today(), key='project_start')
-    project_end = st.date_input("End Date", value=date.today(), key='project_end')
-
-    if st.button("Add Project"):
-        if not project_name:
-            st.error("Project name cannot be empty!")
-        elif project_start > project_end:
-            st.error("Start date cannot be after end date!")
+    if login_clicked:
+        if authenticate(email, pwd):
+            st.session_state['logged_in'] = True
+            st.session_state['user'] = email
+            st.success(f"Welcome, {email}!")
         else:
-            add_project(project_name, project_description, project_start.isoformat(), project_end.isoformat())
-            st.success(f"Project '{project_name}' added successfully!")
-            reset_project_inputs()
+            st.error('Invalid credentials')
 
-st.markdown("---")
+# --- DB helpers ---
+def fetch_projects():
+    try:
+        with get_connection() as conn:
+            return pd.read_sql_query("SELECT * FROM projects", conn)
+    except Exception as e:
+        st.error(f"Failed to fetch projects: {e}")
+        return pd.DataFrame()
 
-# --- Display Projects ---
-projects = fetch_projects()
-if projects:
-    st.subheader("Projects")
-    for project in projects:
-        proj_id, name, desc, start, end = project
-        with st.expander(f"🗂 {name} (ID: {proj_id})"):
-            st.write(f"**Description:** {desc}")
-            st.write(f"**Start:** {start} | **End:** {end}")
+def fetch_tasks():
+    try:
+        with get_connection() as conn:
+            return pd.read_sql_query("SELECT * FROM tasks", conn)
+    except Exception as e:
+        st.error(f"Failed to fetch tasks: {e}")
+        return pd.DataFrame()
 
-            # --- Show Tasks ---
-            tasks = fetch_tasks(proj_id)
-            if tasks:
-                st.markdown("**Tasks:**")
-                for task in tasks:
-                    t_id, p_id, title, due, assignee, status = task
-                    st.write(f"- [{status}] **{title}** | Assignee: {assignee} | Due: {due}")
+def add_project(name, desc, start, end, members):
+    try:
+        with get_connection() as conn:
+            project_code = f"PRJ-{int(datetime.now().timestamp())}"
+            cursor = conn.execute("""
+                INSERT INTO projects (project_code, name, description, start_date, end_date, status, members, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, 'Not Started', ?, ?, ?)
+            """, (project_code, name, desc, start.isoformat(), end.isoformat(), members, st.session_state['user'], datetime.now().isoformat()))
+            conn.commit()
+            pid = cursor.lastrowid
+        st.success(f"Project '{name}' added with ID {pid}")
+    except Exception as e:
+        st.error(f"Error adding project: {e}")
 
-                    cols = st.columns([1,3])
-                    if cols[0].button(f"Delete Task {t_id}", key=f"del_task_{t_id}"):
-                        delete_task(t_id)
-                        st.experimental_rerun = lambda: None  # dummy, ignore
-                        st.success("Task deleted.")
-                        st.experimental_rerun = None
-                        st.experimental_rerun = None  # We can't rerun, so use workaround: show success and reload UI
-                        # Instead of rerun, just reload page manually or rely on session_state
+def delete_project(pid):
+    try:
+        with get_connection() as conn:
+            conn.execute("DELETE FROM projects WHERE id = ?", (pid,))
+            conn.execute("DELETE FROM tasks WHERE project_id = ?", (pid,))
+            conn.commit()
+        st.success(f"Project {pid} deleted")
+    except Exception as e:
+        st.error(f"Failed to delete project {pid}: {e}")
 
-                    new_status = cols[1].selectbox(f"Update Status {t_id}", ['To Do', 'In Progress', 'Blocked', 'Completed'],
-                                                  index=['To Do', 'In Progress', 'Blocked', 'Completed'].index(status),
-                                                  key=f"status_{t_id}")
-                    if cols[1].button(f"Update {t_id}", key=f"update_status_{t_id}"):
-                        update_task_status(t_id, new_status)
-                        st.success(f"Task status updated to '{new_status}'.")
+def update_project_status(pid, status):
+    try:
+        with get_connection() as conn:
+            conn.execute("UPDATE projects SET status = ? WHERE id = ?", (status, pid))
+            conn.commit()
+        st.success(f"Project {pid} updated to {status}")
+    except Exception as e:
+        st.error(f"Failed to update project status: {e}")
 
-            else:
-                st.info("No tasks for this project.")
+def add_task(pid, title, due, assignee, status):
+    try:
+        with get_connection() as conn:
+            conn.execute("""
+                INSERT INTO tasks (project_id, title, due_date, assignee, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (pid, title, due.isoformat(), assignee, status, datetime.now().isoformat()))
+            conn.commit()
+        st.success(f"Task '{title}' added to project {pid}")
+    except Exception as e:
+        st.error(f"Failed to add task: {e}")
 
-            # --- Add New Task ---
-            st.markdown("Add New Task")
-            task_title = st.text_input(f"Task Title - Project {proj_id}", key=f"task_title_{proj_id}")
-            task_due = st.date_input(f"Due Date - Project {proj_id}", value=date.today(), key=f"task_due_{proj_id}")
-            task_assignee = st.selectbox(f"Assignee - Project {proj_id}", ['Alice', 'Bob', 'Charlie', 'Dana'], key=f"task_assignee_{proj_id}")
-            task_status = st.selectbox(f"Status - Project {proj_id}", ['To Do', 'In Progress', 'Blocked', 'Completed'], key=f"task_status_{proj_id}")
+def update_task(task_id, field, value):
+    allowed_fields = ['title', 'due_date', 'assignee', 'status']
+    if field not in allowed_fields:
+        st.error(f"Field '{field}' is not allowed to update")
+        return
+    try:
+        with get_connection() as conn:
+            conn.execute(f"UPDATE tasks SET {field} = ? WHERE id = ?", (value, task_id))
+            conn.commit()
+        st.success(f"Task {task_id} updated: {field} → {value}")
+    except Exception as e:
+        st.error(f"Failed to update task: {e}")
 
-            if st.button(f"Add Task - Project {proj_id}", key=f"add_task_{proj_id}"):
-                if not task_title:
-                    st.error("Task title cannot be empty!")
-                else:
-                    add_task(proj_id, task_title, task_due.isoformat(), task_assignee, task_status)
-                    st.success(f"Task '{task_title}' added!")
-                    reset_task_inputs(proj_id)
+# --- Metrics ---
+def project_metrics():
+    df = fetch_projects()
+    if df.empty:
+        return pd.Series(dtype=int)
+    return df['status'].value_counts().reindex(['Not Started', 'In Progress', 'On Hold', 'Completed'], fill_value=0)
 
-            # --- Delete Project ---
-            if st.button(f"Delete Project {proj_id}"):
-                delete_project(proj_id)
-                st.success(f"Project '{name}' deleted.")
+def task_metrics():
+    df = fetch_tasks()
+    if df.empty:
+        return pd.Series(dtype=int)
+    return df['status'].value_counts().reindex(['To Do', 'In Progress', 'Blocked', 'Completed'], fill_value=0)
+
+def upcoming_deadlines(days=7):
+    df = fetch_projects()
+    if df.empty:
+        return pd.DataFrame()
+    df['end_date'] = pd.to_datetime(df['end_date'], errors='coerce')
+    upcoming = df[(df['end_date'] <= pd.Timestamp(date.today() + pd.Timedelta(days=days))) & (df['end_date'] >= pd.Timestamp(date.today()))]
+    return upcoming[['id','name','end_date']]
+
+# --- Main UI ---
+
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+if 'user' not in st.session_state:
+    st.session_state['user'] = ''
+
+if not st.session_state['logged_in']:
+    login_page()
 else:
-    st.info("No projects added yet.")
+    st.sidebar.header(f"👤 {st.session_state['user']}")
+
+    menu = st.sidebar.radio('Navigation', ['Dashboard', 'Projects', 'Tasks', 'Reports', 'Logout'])
+
+    if menu == 'Logout':
+        st.session_state['logged_in'] = False
+        st.session_state['user'] = ''
+        st.experimental_rerun = lambda: None  # noop to prevent errors if accidentally called
+
+    elif menu == 'Dashboard':
+        st.header("📊 Dashboard")
+        proj_counts = project_metrics()
+        task_counts = task_metrics()
+        df_tasks = fetch_tasks()
+        if not df_tasks.empty:
+            df_tasks['due_date'] = pd.to_datetime(df_tasks['due_date'], errors='coerce')
+            overdue = df_tasks[df_tasks['due_date'] < pd.Timestamp(date.today())]
+        else:
+            overdue = pd.DataFrame()
+
+        upcoming = upcoming_deadlines()
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric('Total Projects', int(proj_counts.sum()))
+        c2.metric('In Progress', int(proj_counts.get('In Progress', 0)))
+        c3.metric('Total Tasks', int(task_counts.sum()))
+        c4.metric('Overdue Tasks', len(overdue))
+
+        st.subheader('Project Status Distribution')
+        st.bar_chart(proj_counts)
+
+        st.subheader('Task Status Distribution')
+        st.bar_chart(task_counts)
+
+        st.subheader('Upcoming Deadlines')
+        if not upcoming.empty:
+            st.table(upcoming.rename(columns={'id':'ID','name':'Project','end_date':'Ends'}))
+        else:
+            st.info('No upcoming deadlines')
+
+    elif menu == 'Projects':
+        st.header("📁 Projects")
+        with st.expander('➕ Add New Project'):
+            name = st.text_input('Name', key='add_proj_name')
+            desc = st.text_area('Description', key='add_proj_desc')
+            start = st.date_input('Start Date', value=date.today(), key='add_proj_start')
+            end = st.date_input('End Date', value=date.today(), key='add_proj_end')
+            members = st.multiselect('Members', ['Alice','Bob','Charlie','Dana'], key='add_proj_members')
+            if st.button('Create Project', key='btn_add_project'):
+                if not name:
+                    st.error("Project name is required")
+                elif start > end:
+                    st.error("Start date cannot be after End date")
+                else:
+                    add_project(name, desc, start, end, ",".join(members))
+
+        dfp = fetch_projects()
+        if not dfp.empty:
+            st.table(dfp.set_index('id')[['name','status','start_date','end_date']]
+                .rename(columns={'name':'Name','start_date':'Start','end_date':'End','status':'Status'}))
+            sel = st.selectbox('Select Project', options=dfp['id'], key='sel_project',
+                format_func=lambda x: f"{x} - {dfp[dfp['id']==x]['name'].iloc[0]}" if not dfp[dfp['id']==x].empty else str(x))
+            new_stat = st.selectbox('Change Status', ['Not Started','In Progress','On Hold','Completed'], key='proj_status')
+            if st.button('Update Project Status', key='btn_update_proj_status'):
+                update_project_status(sel, new_stat)
+            if st.button('Delete Project', key='btn_delete_proj'):
+                delete_project(sel)
+        else:
+            st.info('No projects available')
+
+    elif menu == 'Tasks':
+        st.header('✅ Tasks')
+        with st.expander('➕ Add New Task'):
+            dproj = fetch_projects()
+            if not dproj.empty:
+                pid = st.selectbox('Project', options=dproj['id'], key='task_proj_select',
+                    format_func=lambda x: f"{x} - {dproj[dproj['id']==x]['name'].iloc[0]}" if not dproj[dproj['id']==x].empty else str(x))
+                title = st.text_input('Task Title', key='task_title')
+                due = st.date_input('Due Date', value=date.today(), key='task_due')
+                assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie','Dana'], key='task_assignee')
+                status = st.selectbox('Status', ['To Do','In Progress','Blocked','Completed'], key='task_status_add')
+                if st.button('Add Task', key='btn_add_task'):
+                    if not title:
+                        st.error("Task title is required")
+                    else:
+                        add_task(pid, title, due, assignee, status)
+            else:
+                st.info('Create a project first')
+
+        dft = fetch_tasks()
+        if not dft.empty:
+            dft['due_date'] = pd.to_datetime(dft['due_date'], errors='coerce')
+            cols = ['project_id','title','assignee','status','due_date']
+            df_disp = dft.set_index('id')[cols]
+            st.table(df_disp.rename(columns={'project_id':'Project','title':'Title','assignee':'Assignee','status':'Status','due_date':'Due'}))
+
+            tid = st.selectbox('Select Task', options=dft['id'], key='task_select')
+            new_tstat = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status_update')
+            if st.button('Update Task', key='btn_update_task'):
+                update_task(tid,'status',new_tstat)
+        else:
+            st.info('No tasks available')
+
+    elif menu == 'Reports':
+        st.header("📈 Reports")
+        proj_counts = project_metrics()
+        task_counts = task_metrics()
+        st.subheader('Projects by Status')
+        st.bar_chart(proj_counts)
+        st.subheader('Tasks by Status')
+        st.bar_chart(task_counts)
+        rate = (task_counts.get('Completed',0) / task_counts.sum()) if task_counts.sum() else 0
+        st.metric('Task Completion Rate',f"{rate:.0%}")
