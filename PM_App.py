@@ -100,14 +100,14 @@ def fetch_tasks():
         st.error(f"Failed to fetch tasks: {e}")
         return pd.DataFrame()
 
-def add_project(project_code, name, desc, start, end, members):
+def add_project(id, name, desc, start, end, members):
     try:
         with get_connection() as conn:
             #project_code = f"PRJ-{int(datetime.now().timestamp())}"
             cursor = conn.execute("""
-                INSERT INTO projects (project_code, name, description, start_date, end_date, status, members, created_by, created_at)
+                INSERT INTO projects (id, name, description, start_date, end_date, status, members, created_by, created_at)
                 VALUES (?, ?, ?, ?, ?, 'Not Started', ?, ?, ?)
-            """, (project_code, name, desc, start.isoformat(), end.isoformat(), members, st.session_state['user'], datetime.now().isoformat()))
+            """, (id, name, desc, start.isoformat(), end.isoformat(), members, st.session_state['user'], datetime.now().isoformat()))
             conn.commit()
             pid = cursor.lastrowid
         st.success(f"Project '{name}' added with ID {pid}")
