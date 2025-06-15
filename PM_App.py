@@ -24,6 +24,12 @@ def initialize_database():
                 created_at TEXT
             )
         """)
+
+                # Check and add missing column
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(projects);")]
+        if "project_code" not in columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT;")
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
