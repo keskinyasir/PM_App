@@ -72,7 +72,7 @@ def authenticate(email, pwd):
     return email == 'admin@example.com' and pwd == 'password123'
 
 def login_page():
-    st.title('🔐 Login')
+    st.title('Login')
     email = st.text_input('Email')
     pwd = st.text_input('Password', type='password')
     if st.button('Login'):
