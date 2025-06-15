@@ -37,13 +37,6 @@ def initialize_database():
             )
         """)
 
-    # Migrate project_code if missing
-    with get_connection() as conn:
-        existing_columns = pd.read_sql_query("PRAGMA table_info(projects)", conn)['name'].tolist()
-        if 'project_code' not in existing_columns:
-            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
-            conn.commit()
-
 initialize_database()
 
 # --- Page config and styling ---
@@ -72,8 +65,8 @@ def authenticate(email, pwd):
 
 def login_page():
     st.title('Login')
-    email = st.text_input('Email')
-    pwd = st.text_input('Password', type='password')
+    email = st.text_input('Email', key='login_email')
+    pwd = st.text_input('Password', type='password', key='login_password')
     login_clicked = st.button('Login')
 
     if login_clicked:
@@ -189,8 +182,6 @@ if 'user' not in st.session_state:
 
 if not st.session_state['logged_in']:
     login_page()
-    if st.session_state['logged_in']:
-        st.experimental_rerun()
 else:
     st.sidebar.header(f"👤 {st.session_state['user']}")
 
@@ -199,7 +190,7 @@ else:
     if menu == 'Logout':
         st.session_state['logged_in'] = False
         st.session_state['user'] = ''
-        st.experimental_rerun()
+        st.experimental_rerun = lambda: None  # noop to prevent errors if accidentally called
 
     elif menu == 'Dashboard':
         st.header("📊 Dashboard")
@@ -235,33 +226,30 @@ else:
     elif menu == 'Projects':
         st.header("📁 Projects")
         with st.expander('➕ Add New Project'):
-            name = st.text_input('Name')
-            desc = st.text_area('Description')
-            start = st.date_input('Start Date', value=date.today())
-            end = st.date_input('End Date', value=date.today())
-            members = st.multiselect('Members', ['Alice','Bob','Charlie','Dana'])
-            if st.button('Create Project'):
+            name = st.text_input('Name', key='add_proj_name')
+            desc = st.text_area('Description', key='add_proj_desc')
+            start = st.date_input('Start Date', value=date.today(), key='add_proj_start')
+            end = st.date_input('End Date', value=date.today(), key='add_proj_end')
+            members = st.multiselect('Members', ['Alice','Bob','Charlie','Dana'], key='add_proj_members')
+            if st.button('Create Project', key='btn_add_project'):
                 if not name:
                     st.error("Project name is required")
                 elif start > end:
                     st.error("Start date cannot be after End date")
                 else:
                     add_project(name, desc, start, end, ",".join(members))
-                    st.experimental_rerun()
 
         dfp = fetch_projects()
         if not dfp.empty:
             st.table(dfp.set_index('id')[['name','status','start_date','end_date']]
                 .rename(columns={'name':'Name','start_date':'Start','end_date':'End','status':'Status'}))
-            sel = st.selectbox('Select Project', options=dfp['id'],
+            sel = st.selectbox('Select Project', options=dfp['id'], key='sel_project',
                 format_func=lambda x: f"{x} - {dfp[dfp['id']==x]['name'].iloc[0]}" if not dfp[dfp['id']==x].empty else str(x))
             new_stat = st.selectbox('Change Status', ['Not Started','In Progress','On Hold','Completed'], key='proj_status')
-            if st.button('Update Project Status'):
+            if st.button('Update Project Status', key='btn_update_proj_status'):
                 update_project_status(sel, new_stat)
-                st.experimental_rerun()
-            if st.button('Delete Project'):
+            if st.button('Delete Project', key='btn_delete_proj'):
                 delete_project(sel)
-                st.experimental_rerun()
         else:
             st.info('No projects available')
 
@@ -270,18 +258,17 @@ else:
         with st.expander('➕ Add New Task'):
             dproj = fetch_projects()
             if not dproj.empty:
-                pid = st.selectbox('Project', options=dproj['id'],
+                pid = st.selectbox('Project', options=dproj['id'], key='task_proj_select',
                     format_func=lambda x: f"{x} - {dproj[dproj['id']==x]['name'].iloc[0]}" if not dproj[dproj['id']==x].empty else str(x))
-                title = st.text_input('Task Title')
-                due = st.date_input('Due Date', value=date.today())
-                assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie','Dana'])
-                status = st.selectbox('Status', ['To Do','In Progress','Blocked','Completed'])
-                if st.button('Add Task'):
+                title = st.text_input('Task Title', key='task_title')
+                due = st.date_input('Due Date', value=date.today(), key='task_due')
+                assignee = st.selectbox('Assignee', ['Alice','Bob','Charlie','Dana'], key='task_assignee')
+                status = st.selectbox('Status', ['To Do','In Progress','Blocked','Completed'], key='task_status_add')
+                if st.button('Add Task', key='btn_add_task'):
                     if not title:
                         st.error("Task title is required")
                     else:
                         add_task(pid, title, due, assignee, status)
-                        st.experimental_rerun()
             else:
                 st.info('Create a project first')
 
@@ -292,11 +279,10 @@ else:
             df_disp = dft.set_index('id')[cols]
             st.table(df_disp.rename(columns={'project_id':'Project','title':'Title','assignee':'Assignee','status':'Status','due_date':'Due'}))
 
-            tid = st.selectbox('Select Task', options=dft['id'])
-            new_tstat = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status')
-            if st.button('Update Task'):
+            tid = st.selectbox('Select Task', options=dft['id'], key='task_select')
+            new_tstat = st.selectbox('Update Status', ['To Do','In Progress','Blocked','Completed'], key='task_status_update')
+            if st.button('Update Task', key='btn_update_task'):
                 update_task(tid,'status',new_tstat)
-                st.experimental_rerun()
         else:
             st.info('No tasks available')
 
