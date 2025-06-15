@@ -10,7 +10,7 @@ def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 def initialize_database():
     with get_connection() as conn:
-        # Create tables if they do not exist
+        # Create projects table without project_code (initial setup)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,10 +38,10 @@ def initialize_database():
         """)
         conn.commit()
 
-        # --- MIGRATION: Add project_code column if missing ---
+        # Migration: add project_code if it doesn't exist
         existing_columns = pd.read_sql_query("PRAGMA table_info(projects)", conn)['name'].tolist()
         if 'project_code' not in existing_columns:
-            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT UNIQUE")
+            conn.execute("ALTER TABLE projects ADD COLUMN project_code TEXT")
             conn.commit()
 
 
