@@ -6,6 +6,28 @@ from datetime import datetime, date
 
 DB_PATH = 'pm_app.db'
 
+# --- Page Configuration & Styling ---
+st.set_page_config(
+    page_title="Project Management Tool",
+    page_icon="📋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] { background-color: #f9f9f9; }
+[data-testid="stSidebar"] { background-color: #1E3A8A; }
+[data-testid="stSidebar"] * { color: #ffffff; }
+.stMetric > div { background-color: #FFFFFF; border-left: 4px solid #1E3A8A; border-radius: 8px; padding: 10px; }
+thead tr th { background-color: #E1EAF6 !important; color: #1E3A8A !important; }
+.stButton>button { background-color: #1E3A8A; color: #ffffff; border-radius: 5px; }
+.stButton>button:hover { background-color: #162c61; }
+</style>
+""", unsafe_allow_html=True)
+
+
+
 def get_connection():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
@@ -52,25 +74,7 @@ def add_project_code_column_if_missing():
 initialize_database()
 add_project_code_column_if_missing()
 
-# --- Page Configuration & Styling ---
-st.set_page_config(
-    page_title="Project Management Tool",
-    page_icon="📋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
-st.markdown("""
-<style>
-[data-testid="stAppViewContainer"] { background-color: #f9f9f9; }
-[data-testid="stSidebar"] { background-color: #1E3A8A; }
-[data-testid="stSidebar"] * { color: #ffffff; }
-.stMetric > div { background-color: #FFFFFF; border-left: 4px solid #1E3A8A; border-radius: 8px; padding: 10px; }
-thead tr th { background-color: #E1EAF6 !important; color: #1E3A8A !important; }
-.stButton>button { background-color: #1E3A8A; color: #ffffff; border-radius: 5px; }
-.stButton>button:hover { background-color: #162c61; }
-</style>
-""", unsafe_allow_html=True)
 
 # --- Authentication ---
 def authenticate(email, pwd):
