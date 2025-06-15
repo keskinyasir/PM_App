@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-import supabase
+from supabase import create_client
 
 
 # --- Supabase Configuration ---
