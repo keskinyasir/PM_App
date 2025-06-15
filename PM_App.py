@@ -189,7 +189,7 @@ else:
             st.info('No upcoming deadlines')
 
     elif menu == 'Projects':
-        st.header('\ud83d\udcc1 Projects')
+        st.header(":file_folder: Projects")
         with st.expander('\u2795 Add New Project'):
             name = st.text_input('Name')
             desc = st.text_area('Description')
