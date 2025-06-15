@@ -162,7 +162,7 @@ else:
         st.experimental_rerun()
 
     if menu == 'Dashboard':
-        st.header('\ud83d\udcca Dashboard')
+        st.header(":bar_chart: Dashboard")
         proj_counts = project_metrics()
         task_counts = task_metrics()
         df_tasks = fetch_tasks()
