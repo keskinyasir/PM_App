@@ -227,6 +227,7 @@ else:
     elif menu == 'Projects':
         st.header("📁 Projects")
         with st.expander('➕ Add New Project'):
+            project_code = f"PRJ-{int(datetime.now().timestamp())}"
             name = st.text_input('Name', key='add_proj_name')
             desc = st.text_area('Description', key='add_proj_desc')
             start = st.date_input('Start Date', value=date.today(), key='add_proj_start')
@@ -238,7 +239,7 @@ else:
                 elif start > end:
                     st.error("Start date cannot be after End date")
                 else:
-                    add_project(project_id,name, desc, start, end, ",".join(members))
+                    add_project(project_code ,name, desc, start, end, ",".join(members))
 
         dfp = fetch_projects()
         if not dfp.empty:
