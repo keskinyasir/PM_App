@@ -244,7 +244,7 @@ else:
             st.info('No tasks available')
 
     elif menu == 'Reports':
-        st.header('\ud83d\udcc8 Reports')
+        st.header(":chart_with_upwards_trend: Reports")
         proj_counts = project_metrics()
         task_counts = task_metrics()
         st.subheader('Projects by Status')
