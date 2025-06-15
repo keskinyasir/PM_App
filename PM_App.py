@@ -238,7 +238,7 @@ else:
                 elif start > end:
                     st.error("Start date cannot be after End date")
                 else:
-                    add_project(name, desc, start, end, ",".join(members))
+                    add_project(project_id,name, desc, start, end, ",".join(members))
 
         dfp = fetch_projects()
         if not dfp.empty:
